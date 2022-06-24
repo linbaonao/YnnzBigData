@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.ynnzbigdata.dao.Mapper.Mappers">
+    <!-- 登录查询-->
+    <select id="SelectorUser" resultType="User">
+        SELECT * FROM `usertable` where
+        # 从参数中取值判断
+        <if test="name!=null">
+            name=#{name}
+        </if>
+        <if test="password!=null">
+            and password=#{password}
+        </if>
+    </select>
+
+    <!--全国疫情信息查询-->
+    <select id="SelectEpidemic" resultType="Epidemic">
+        SELECT id, mainland, overseas, date
+        FROM epidemic
+    </select>
+
+    <!--云南信息查询-->
+    <select id="SelectYn" resultType="Epidemic">
+        SELECT id, yunnan, ymain, yovers, date
+        FROM epidemic
+        where date > #{date}
+    </select>
+
+    <!--学生家庭地址数据-->
+    <select id="SelectStudents" resultType="Distribute">
+        SELECT id, city, students
+        FROM distribute
+    </select>
+
+    <!--学院人数、返校信息-->
+    <select id="SelectCollege" resultType="College">
+        SELECT id, college, students, returnschool
+        FROM college
+    </select>
+
+    <!--学院人数、返校信息-->
+    <select id="SelectProvince" resultType="Top">
+        SELECT id, province, number, date
+        FROM top10
+        where date = #{date}
+    </select>
+
+    <!--数据库字段重命名-->
+    <resultMap id="StudentsMap" type="Students">
+        <id column="id" jdbcType="INTEGER" property="id"/>
+        <result column="stu_id" jdbcType="VARCHAR" property="stuId"/>
+        <result column="stu_name" jdbcType="VARCHAR" property="stuName"/>
+        <result column="sex" jdbcType="VARCHAR" property="sex"/>
+        <result column="status" jdbcType="VARCHAR" property="status"/>
+        <result column="class_id" jdbcType="INTEGER" property="classId"/>
+        <result column="ot" property="ot" jdbcType="INTEGER"/>
+        <result column="ret" property="ret" jdbcType="INTEGER"/>
+        <result column="late" property="late" jdbcType="INTEGER"/>
+        <result column="returndate" property="returndate" jdbcType="TIMESTAMP"/>
+        <result column="reason" jdbcType="VARCHAR" property="reason"/>
+        <result column="place" jdbcType="VARCHAR" property="place"/>
+        <result column="outdate" jdbcType="TIMESTAMP" property="outdate"/>
+        <result column="returndate" jdbcType="TIMESTAMP" property="returndate"/>
+        <result column="plac" jdbcType="VARCHAR" property="plac"/>
+        <result column="class_name" jdbcType="VARCHAR" property="class_name"/>
+        <result column="teacher" jdbcType="VARCHAR" property="teacher"/>
+    </resultMap>
+    <resultMap id="ClassesMap" type="Classes">
+        <id column="class_id" jdbcType="INTEGER" property="classId"/>
+        <result column="class_name" jdbcType="VARCHAR" property="className"/>
+        <result column="teacher" jdbcType="VARCHAR" property="teacher"/>
+        <result column="studen_num" jdbcType="INTEGER" property="studenNum"/>
+    </resultMap>
+    <resultMap id="OutschoolMap" type="Outschool">
+        <id column="id" jdbcType="INTEGER" property="id"/>
+        <result column="stu_id" jdbcType="VARCHAR" property="stuId"/>
+        <result column="reason" jdbcType="VARCHAR" property="reason"/>
+        <result column="place" jdbcType="VARCHAR" property="place"/>
+        <result column="outdate" jdbcType="TIMESTAMP" property="outdate"/>
+        <result column="returndate" jdbcType="TIMESTAMP" property="returndate"/>
+        <result column="number" jdbcType="INTEGER" property="number"/>
+        <result column="plac" jdbcType="VARCHAR" property="plac"/>
+    </resultMap>
+
+    <resultMap id="stuAndclaAndOutMap" type="Students" extends="StudentsMap">
+        <association property="outschool" resultMap="OutschoolMap"></association>
+        <association property="classes" resultMap="ClassesMap"></association>
+    </resultMap>
+    <!--累计请假查询    -->
+    <select id="SelectStuAndcliAndout" resultMap="stuAndclaAndOutMap">
+        SELECT cl.class_name,
+               cl.teacher,
+               cl.class_id,
+               COUNT(ot.stu_id),
+               COUNT(CASE WHEN ot.outdate &lt;= #{date1} THEN 1 ELSE NULL END)    AS ot,
+               COUNT(CASE WHEN ot.returndate &lt;= #{date1} THEN 1 ELSE NULL END) AS ret
+        FROM classes cl
+                 JOIN student st
+                      ON cl.class_id = st.class_id
+                 JOIN outschool ot ON st.stu_id = ot.stu_id
+        WHERE ot.outdate >= #{date}
+        GROUP BY st.class_id
+    </select>
+
+    <!--班级信息-->
+    <select id="SelectClasses" resultMap="ClassesMap">
+        SELECT class_name, teacher, studen_num
+        FROM classes
+    </select>
+    <!--查询当日疫情信息-->
+    <select id="SelectDay" resultMap="stuAndclaAndOutMap">
+        SELECT cl.class_name,
+               cl.teacher,
+               cl.class_id,
+               COUNT(CASE WHEN ot.outdate &lt;= #{date1} THEN 1 ELSE NULL END)    AS ot,
+               COUNT(CASE WHEN ot.returndate &lt;= #{date1} THEN 1 ELSE NULL END) AS ret,
+               COUNT(CASE WHEN ot.returndate > #{date2} THEN 1 ELSE NULL END)     AS late
+        FROM classes cl
+                 JOIN student st ON cl.class_id = st.class_id
+                 JOIN outschool ot ON st.stu_id = ot.stu_id
+        WHERE ot.outdate >= #{date}
+           OR ot.returndate IS NULL
+        GROUP BY st.class_id
+
+    </select>
+    <!--    实时查询学生 离校返校对比-->
+    <select id="SelectRealtime" resultMap="stuAndclaAndOutMap">
+        SELECT COUNT(CASE WHEN ot.outdate = #{date1} THEN 1 ELSE NULL END)    AS ot,
+               COUNT(CASE WHEN ot.returndate = #{date1} THEN 1 ELSE NULL END) AS ret
+        FROM classes cl
+                 JOIN student st ON cl.class_id = st.class_id
+                 JOIN outschool ot ON st.stu_id = ot.stu_id
+        WHERE ot.outdate >= #{date}
+           OR ot.returndate IS NULL
+    </select>
+
+    <!--实时查询学生 离校返校对比-->
+    <select id="SelectPlace" resultMap="OutschoolMap">
+        SELECT ot.place,
+               COUNT(CASE WHEN ot.outdate &lt;= #{date1} THEN 1 ELSE NULL END) AS plac
+        FROM outschool ot
+        WHERE ot.outdate >= #{date}
+        GROUP BY ot.place
+    </select>
+
+    <!-- 查询晚归信息   -->
+    <select id="SelectLate" resultMap="stuAndclaAndOutMap">
+        SELECT ot.returndate,
+               st.stu_name,
+               cl.class_name
+        FROM classes cl
+                 JOIN student st ON cl.class_id = st.class_id
+                 JOIN late ot ON st.stu_id = ot.stu_id
+        WHERE ot.returndate > #{date}
+           OR ot.returndate &gt;= #{date2}
+           OR ot.returndate IS NULL
+    </select>
+    <!--    excel表格-->
+    <select id="SelectExcel" resultMap="stuAndclaAndOutMap">
+        SELECT ot.id,st.stu_name,cl.class_name,cl.teacher,ot.reason,ot.place,ot.outdate,ot.returndate
+        FROM classes cl
+        JOIN student st ON cl.class_id = st.class_id
+        JOIN outschool ot ON st.stu_id = ot.stu_id
+        WHERE ot.outdate >= #{date} AND ot.outdate &lt;= #{date1}
+        OR ot.returndate IS NULL
+    </select>
+</mapper>
